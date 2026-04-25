@@ -21,6 +21,8 @@ WORKDIR /usr/src/app
 # Copy only necessary files from build stage
 COPY --from=build /usr/src/app /usr/src/app
 
+RUN chown -R appuser:appgroup /usr/src/app
+
 # Switch to non-root user
 USER appuser
 
