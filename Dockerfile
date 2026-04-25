@@ -1,5 +1,5 @@
 # ---- Build Stage ----
-FROM node:20-alpine AS build
+FROM node:25.9.0-alpine3.22 AS build
 
 # Create app directory
 WORKDIR /usr/src/app
@@ -13,7 +13,7 @@ RUN npm ci --only=production
 COPY . .
 
 # ---- Production Stage ----
-FROM node:20-alpine
+FROM node:25.9.0-alpine3.22
 
 WORKDIR /usr/src/app
 
