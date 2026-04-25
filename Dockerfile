@@ -13,7 +13,7 @@ COPY . .
 # ---- Production Stage ----
 FROM node:lts-slim
 
-RUN apk add --no-cache netcat-openbsd
+RUN apt-get update && apt-get install -y netcat-openbsd && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
