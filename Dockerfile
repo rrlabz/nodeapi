@@ -1,5 +1,5 @@
 # ---- Build Stage ----
-FROM node:lts-trixie-slim AS build
+FROM node:lts-slim AS build
 
 WORKDIR /usr/src/app
 
@@ -11,11 +11,7 @@ RUN npm install --omit=dev
 COPY . .
 
 # ---- Production Stage ----
-FROM node:lts-trixie-slim
-
-RUN apt-get update && \
-    apt-get install -y netcat-openbsd && \
-    rm -rf /var/lib/apt/lists/*
+FROM node:lts-slim
 
 # Create non-root user
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
