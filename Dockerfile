@@ -1,27 +1,34 @@
 # ---- Build Stage ----
-FROM node:25.9.0-alpine3.22 AS build
+FROM node:lts-trixie-slim AS build
 
-# Create app directory
 WORKDIR /usr/src/app
 
-# Copy package files and install dependencies
+# Install dependencies (clean + reproducible)
 COPY package*.json ./
-RUN npm install
-RUN npm ci --only=production
+RUN npm ci
 
-# Copy rest of the application
+# Copy source code
 COPY . .
 
 # ---- Production Stage ----
-FROM node:25.9.0-alpine3.22
+FROM node:lts-trixie-slim
+
+# Create non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 WORKDIR /usr/src/app
 
-# Copy built app from build stage
-COPY --from=build /usr/src/app .
+# Copy only necessary files from build stage
+COPY --from=build /usr/src/app /usr/src/app
 
-# Expose the API port (adjust as needed)
+# Remove dev dependencies (extra safety)
+RUN npm prune --omit=dev
+
+# Switch to non-root user
+USER appuser
+
+# Expose port
 EXPOSE 5000
 
-# Start the app
-CMD ["npm", "start"]
+# Start app
+CMD ["node", "server.js"]
