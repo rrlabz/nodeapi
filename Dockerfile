@@ -13,6 +13,8 @@ COPY . .
 # ---- Production Stage ----
 FROM node:lts-slim
 
+RUN apt-get update && apt-get install -y netcat-openbsd && rm -rf /var/lib/apt/lists/*
+
 # Create non-root user
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 
@@ -20,6 +22,8 @@ WORKDIR /usr/src/app
 
 # Copy only necessary files from build stage
 COPY --from=build /usr/src/app /usr/src/app
+
+RUN chown -R appuser:appgroup /usr/src/app
 
 # Switch to non-root user
 USER appuser
