@@ -21,7 +21,7 @@ WORKDIR /usr/src/app
 COPY --from=build /usr/src/app .
 
 # Expose the API port (adjust as needed)
-EXPOSE 3000
+EXPOSE 5000
 
 # Start the app
 CMD ["npm", "start"]
