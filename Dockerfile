@@ -1,10 +1,6 @@
 # ---- Build Stage ----
 FROM node:lts-trixie-slim AS build
 
-RUN apt-get update && \
-    apt-get install -y netcat-openbsd && \
-    rm -rf /var/lib/apt/lists/*
-
 WORKDIR /usr/src/app
 
 # Install dependencies (clean + reproducible)
@@ -16,6 +12,10 @@ COPY . .
 
 # ---- Production Stage ----
 FROM node:lts-trixie-slim
+
+RUN apt-get update && \
+    apt-get install -y netcat-openbsd && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
