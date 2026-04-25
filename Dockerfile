@@ -5,7 +5,7 @@ WORKDIR /usr/src/app
 
 # Install dependencies (clean + reproducible)
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --omit=dev
 
 # Copy source code
 COPY . .
@@ -20,9 +20,6 @@ WORKDIR /usr/src/app
 
 # Copy only necessary files from build stage
 COPY --from=build /usr/src/app /usr/src/app
-
-# Remove dev dependencies (extra safety)
-RUN npm prune --omit=dev
 
 # Switch to non-root user
 USER appuser
