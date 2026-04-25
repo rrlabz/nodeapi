@@ -13,6 +13,8 @@ COPY . .
 # ---- Production Stage ----
 FROM node:lts-slim
 
+RUN apk add --no-cache netcat-openbsd
+
 # Create non-root user
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 
