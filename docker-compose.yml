@@ -2,7 +2,7 @@ services:
   api:
     image: my-node-api:latest
     ports:
-      - "3000:3000"  # Expose API only
+      - "5000:5000"  # Expose API only
     environment:
       - NODE_ENV=production
     depends_on:
