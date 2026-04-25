@@ -4,7 +4,7 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "start": "nodemon server.js",
+    "start": "node server.js",
     "db:migrate": "node ./utils/custom-migration-manager.js",
     "db:migrate apply": "node ./utils/custom-migration-manager.js apply",
     "db:migrate rollback": "node ./utils/custom-migration-manager.js rollback",
