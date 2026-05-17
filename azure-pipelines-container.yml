@@ -1,0 +1,109 @@
+# Docker
+# Build a Docker image
+# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
+
+trigger:
+- main
+
+resources:
+- repo: self
+
+variables:
+  tag: '$(Build.BuildId)'
+
+stages:
+- stage: Build
+  displayName: Build image
+  jobs:
+  - job: Build
+    displayName: Build-and-push
+    pool:
+      name: test002
+    steps:
+    - task: Docker@2
+      displayName: Build an image
+      inputs:
+        containerRegistry: 'dockerhub'
+        repository: '$(repo)'
+        command: 'build'
+        Dockerfile: '**/Dockerfile'
+        tags: '$(tag)'
+
+    - script: |
+          trivy image \
+          --ignorefile .trivyignore \
+          --exit-code 1 \
+          --severity HIGH,CRITICAL \
+          --ignore-unfixed $(repo):$(tag)
+      displayName: Trivy Scan
+
+    - task: Docker@2
+      displayName: Push Image
+      inputs:
+        containerRegistry: 'dockerhub'
+        repository: '$(repo)'
+        command: 'push'
+
+- stage: Deploy
+  displayName: Deploy
+  jobs:
+    - job: copy
+      displayName: copy-configs
+      pool:
+        name: test002
+
+      steps:
+          - task: CopyFilesOverSSH@0
+            inputs:
+              sshEndpoint: 'oci'
+              sourceFolder: '$(System.DefaultWorkingDirectory)'
+              contents: |
+                docker-compose.yml
+                health-check.sh
+              targetFolder: '/tmp/app'
+              readyTimeout: '20000'
+
+          - task: SSH@0
+            displayName: Deploy Application
+            inputs:
+              sshEndpoint: 'oci'
+              runOptions: 'inline'
+              inline: |
+                > /tmp/app/.env
+                chmod 600 /tmp/app/.env
+                chmod +x /tmp/app/health-check.sh
+                echo "PORT=5000" >> /tmp/app/.env
+                echo "DB_HOST=mysql" >> /tmp/app/.env
+                echo "DB_USER=$(DB_USER)" >> /tmp/app/.env
+                echo "DB_PASSWORD=$(DB_PASSWORD)" >> /tmp/app/.env
+                echo "DB_NAME=$(DB_NAME)" >> /tmp/app/.env
+                echo "DB_HOST=mysql" >> /tmp/app/.env
+                echo "DB_PORT=3306" >> /tmp/app/.env
+                echo "REDIS_HOST=redis" >> /tmp/app/.env
+                echo "REDIS_PORT=6379" >> /tmp/app/.env
+                echo "JWT_SECRET=$(JWT_SECRET)" >> /tmp/app/.env
+                echo "JWT_ACCESS_EXPIRES=1h" >> /tmp/app/.env
+                echo "JWT_REFRESH_EXPIRES=7d" >> /tmp/app/.env
+                echo "USER_IDS=USR" >> /tmp/app/.env
+                echo "CHARACTERS=ABCDEFGHIJIKLMNOPQRSTUVWXYZ0123456789" >> /tmp/app/.env
+                echo "TRACKING_TABLE=migrations" >> /tmp/app/.env
+                echo "MIGRATIONS_DIR=migrations/sqls" >> /tmp/app/.env
+                echo "API_IMAGE=$(repo):$(tag)" >> /tmp/app/.env
+
+                echo "pulling latest images"
+                cd /tmp/app/ && docker compose pull > /dev/null 2>&1
+
+                echo "stopping current containers"
+                cd /tmp/app/ && docker compose down > /dev/null 2>&1
+
+                echo "starting new containers"
+                cd /tmp/app/ && docker compose up -d > /dev/null 2>&1
+              readyTimeout: '20000'
+
+          - task: SSH@0
+            displayName: Health Check
+            inputs:
+              sshEndpoint: 'oci'
+              runOptions: 'inline'
+              inline: 'bash /tmp/app/health-check.sh'
+              readyTimeout: '20000'
