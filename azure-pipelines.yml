@@ -1,0 +1,140 @@
+# Node.js
+# Build a general Node.js project with npm.
+# Add steps that analyze code, save build artifacts, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/javascript
+
+trigger:
+- main
+
+pool:
+  name: test002
+
+
+variables:
+  appName: node-api
+  deployPath: /tmp/nodeapp
+
+stages:
+
+# ----------------------------
+# BUILD
+# ----------------------------
+
+  - stage: Build
+    jobs:
+      - job: buildJob
+        steps:
+          - task: UseNode@1
+            inputs:
+              version: '25.9.0'
+            displayName: "build stage"
+          
+          - script: npm install
+            displayName: 'Install dependencies'
+
+          # SonarCloud Prepare
+          - task: SonarCloudPrepare@4
+            inputs:
+              SonarQube: 'sonarcloud'
+              organization: 'azuredemo123'
+              scannerMode: 'cli'
+              configMode: 'manual'
+              cliProjectKey: 'azuredemo123_nodeapi'
+              cliProjectName: 'nodeapi'
+              cliSources: '.'
+
+           # Run analysis
+          - task: SonarCloudAnalyze@4
+
+          #Publish Quality Gate
+          - task: SonarCloudPublish@4
+            inputs:
+              pollingTimeoutSec: '300'
+
+          - task: PublishPipelineArtifact@1
+            inputs:
+              targetPath: '$(System.DefaultWorkingDirectory)'
+              artifact: 'nodeapi'
+              publishLocation: 'pipeline'
+
+
+# ----------------------------
+# SECURITY SCAN
+# ----------------------------
+
+  - stage: securityScan
+    dependsOn: Build
+    jobs:
+      - job: scanJob
+        steps:
+        
+          - task: UseNode@1
+            inputs:
+              version: '25.9.0'
+
+          # Download artifact instead of reinstalling
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              artifact: 'nodeapi'
+              path: '$(System.DefaultWorkingDirectory)'
+    
+          - script: |
+              npm audit --audit-level=high
+            displayName: 'npm run audit'
+
+# ----------------------------
+# DEPLOY STAGE
+# ----------------------------
+
+  - stage: Diploy
+    dependsOn: securityScan
+    condition: succeeded()
+    jobs:
+      - job: diployJob
+        steps:
+
+          # Download artifact
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              artifact: 'nodeapi'
+              path: '$(System.DefaultWorkingDirectory)'
+            
+          - task: CopyFilesOverSSH@0
+            inputs:
+              sshEndpoint: 'oci'
+              sourceFolder: '$(System.DefaultWorkingDirectory)'
+              contents: '**'
+              targetFolder: '$(deployPath)'
+              readyTimeout: '20000'
+
+          - task: SSH@0
+            inputs:
+              sshEndpoint: 'oci'
+              runOptions: 'inline'
+              inline: |
+                > $(deployPath)/.env
+                chmod 600 $(deployPath)/.env
+                chmod +x $(deployPath)/health-check.sh
+                echo "PORT=$(PORT)" >> $(deployPath)/.env
+                echo "DB_HOST=$(DB_HOST)" >> $(deployPath)/.env
+                echo "DB_USER=$(DB_USER)" >> $(deployPath)/.env
+                echo "DB_PASSWORD=$(DB_PASSWORD)" >> $(deployPath)/.env
+                echo "DB_NAME=$(DB_NAME)" >> $(deployPath)/.env
+                echo "DB_PORT=$(DB_PORT)" >> $(deployPath)/.env
+                echo "REDIS_HOST=$(REDIS_HOST)" >> $(deployPath)/.env
+                echo "REDIS_PORT=$(REDIS_PORT)" >> $(deployPath)/.env
+                echo "JWT_SECRET=$(JWT_SECRET)" >> $(deployPath)/.env
+                echo "JWT_ACCESS_EXPIRES=1h" >> $(deployPath)/.env
+                echo "JWT_REFRESH_EXPIRES=7d" >> $(deployPath)/.env
+                echo "USER_IDS=USR" >> $(deployPath)/.env
+                echo "CHARACTERS=ABCDEFGHIJIKLMNOPQRSTUVWXYZ0123456789" >> $(deployPath)/.env
+                echo "TRACKING_TABLE=migrations" >> $(deployPath)/.env
+                echo "MIGRATIONS_DIR=migrations/sqls" >> $(deployPath)/.env
+              readyTimeout: '20000'
+          - task: SSH@0
+            inputs:
+              sshEndpoint: 'oci'
+              runOptions: 'commands'
+              commands: |
+                cd $(deployPath) && pm2 delete "$(appName)" 2>/dev/null || true && pm2 start server.js --name $(appName) && pm2 save
+              readyTimeout: '20000'
